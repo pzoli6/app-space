@@ -45,3 +45,31 @@ Pull next task from this ordered list:
 3. **Astronaut bios** — add Wiseman/Glover/Koch/Hansen to carousel
 4. **Engine plumes** — particle systems for SRBs, RS-25s, RL10, AJ10
 5. **Post-launch data sync** — search for Artemis II telemetry updates (mission is live)
+
+<!-- BEGIN GITHUB-KIT UNIVERSAL WORKFLOW -->
+## Universal AI-Agent Workflow
+
+This repository follows the universal issue-to-PR workflow from `pzoli6/github-kit`.
+
+Agents must read:
+- `AGENTS.md`
+- `docs/ai/PROJECT_CONFIG.md`
+- `docs/ai/AGENT_WORKFLOW.md`
+
+Every implementation task must follow:
+User task → plan → human approval → GitHub issue → Project update → agent branch/worktree → implementation → validation → draft PR → handoff → human review.
+
+Required approval phrase:
+```text
+approve
+```
+
+Fast path: `/github_kit <task>` is a pre-approved alternative entry point — the invocation itself is the approval for the described task, scoped to that task only. See `docs/ai/AGENT_WORKFLOW.md` → "Fast-path trigger: /github_kit".
+
+Agents must not push to protected branches, merge PRs, modify secrets, use `git add .`, or claim validation passed unless validation actually ran.
+
+Before stopping, losing context, or handing off to another agent, agents must update:
+- `docs/ai/handoffs/issue-<number>.md`
+- Project field: `Last Agent Update`
+- Project field: `Validation`
+<!-- END GITHUB-KIT UNIVERSAL WORKFLOW -->

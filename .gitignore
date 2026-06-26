@@ -5,3 +5,5 @@ dist
 .env
 .env.local
 .vscode/settings.json
+
+docs/ai/PROJECT_CONFIG.env
