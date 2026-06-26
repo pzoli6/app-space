@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# Verify this repo has the files and key phrases the github-kit agent workflow requires.
+# Mirrors .github/workflows/reusable-agent-workflow-verify.yml for local/offline use.
+set -uo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+cd "$REPO_ROOT"
+
+REQUIRE_CLAUDE="${REQUIRE_CLAUDE:-true}"
+REQUIRE_CURSOR="${REQUIRE_CURSOR:-true}"
+REQUIRE_SKILLS="${REQUIRE_SKILLS:-true}"
+REQUIRE_GEMINI="${REQUIRE_GEMINI:-false}"
+
+missing=0
+
+check_file() {
+  local f="$1"
+  if [ ! -e "$f" ]; then
+    echo "MISSING file: $f"
+    missing=1
+  else
+    echo "OK      file: $f"
+  fi
+}
+
+check_phrase() {
+  local phrase="$1"
+  if grep -RFq \
+      --include='*.md' --include='*.yml' --include='*.yaml' \
+      --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=dist --exclude-dir=build \
+      -- "$phrase" . 2>/dev/null; then
+    echo "OK      phrase: $phrase"
+  else
+    echo "MISSING phrase: $phrase"
+    missing=1
+  fi
+}
+
+check_file "AGENTS.md"
+check_file "docs/ai/PROJECT_CONFIG.md"
+check_file "docs/ai/AGENT_WORKFLOW.md"
+check_file "docs/ai/HANDOFF_INDEX.md"
+check_file ".github/PULL_REQUEST_TEMPLATE.md"
+check_file ".github/ISSUE_TEMPLATE/agent_task.yml"
+check_file ".github/copilot-instructions.md"
+check_file ".github/CODEOWNERS"
+check_file "scripts/project/project_add_item.sh"
+check_file "scripts/project/project_set_status.sh"
+check_file "scripts/project/project_set_text.sh"
+check_file "scripts/project/verify_agent_workflow.sh"
+check_file "scripts/project/create_agent_issue.sh"
+check_file "scripts/project/publish_agent_branch.sh"
+check_file "scripts/project/sync_project_fields.sh"
+check_file "scripts/project/create_agent_pr.sh"
+check_file "scripts/project/check_resume_safety.sh"
+check_file "scripts/project/post_handoff_comment.sh"
+
+if [ "$REQUIRE_CLAUDE" = "true" ]; then
+  check_file "CLAUDE.md"
+  check_file ".claude/skills/issue-to-pr-project/SKILL.md"
+  check_file ".claude/skills/github_kit/SKILL.md"
+  check_file ".claude/commands/github_kit.md"
+fi
+
+if [ "$REQUIRE_CURSOR" = "true" ]; then
+  check_file ".cursor/rules/agent-workflow.mdc"
+  check_file ".cursor/rules/git-safety.mdc"
+  check_file ".cursor/rules/project-board.mdc"
+  check_file ".cursor/rules/github-kit-command.mdc"
+fi
+
+if [ "$REQUIRE_SKILLS" = "true" ]; then
+  check_file ".agents/skills/issue-to-pr-project/SKILL.md"
+  check_file ".agents/skills/github_kit/SKILL.md"
+fi
+
+if [ "$REQUIRE_GEMINI" = "true" ]; then
+  check_file "GEMINI.md"
+fi
+
+check_phrase "approve"
+check_phrase "approve main"
+check_phrase "Production-branch authorization"
+check_phrase "Stop-and-ask gates"
+check_phrase "/github_kit"
+check_phrase "git add ."
+check_phrase "Plan Review"
+check_phrase "Ready"
+check_phrase "In Progress"
+check_phrase "In Review"
+check_phrase "Changes Requested"
+check_phrase "Validation"
+check_phrase "Handoff"
+check_phrase "Last Agent Update"
+check_phrase "Relationships: none declared"
+check_phrase "Notifications: ensured through assignment"
+
+# --- github-kit ref: this repo may auto-track @main (default) or deliberately pin via
+# docs/ai/PROJECT_CONFIG.md's "github-kit ref" key. Either is fine; what matters is that the
+# caller workflows' uses: lines agree with whatever PROJECT_CONFIG.md says.
+
+PROJECT_REF=""
+if [ -f "docs/ai/PROJECT_CONFIG.md" ]; then
+  if grep -Fq "github-kit ref" docs/ai/PROJECT_CONFIG.md; then
+    echo "OK      docs/ai/PROJECT_CONFIG.md documents github-kit ref"
+  else
+    echo "MISSING docs/ai/PROJECT_CONFIG.md key: github-kit ref"
+    missing=1
+  fi
+  PROJECT_REF="$(grep -F 'github-kit ref' docs/ai/PROJECT_CONFIG.md | head -1 | sed -E 's/.*`([^`]+)`.*/\1/')"
+fi
+EXPECTED_REF="${PROJECT_REF:-main}"
+
+ref_ok=1
+for wf in .github/workflows/agent-workflow-verify.yml .github/workflows/pr-policy.yml \
+          .github/workflows/ci-node.yml .github/workflows/ci-python.yml; do
+  [ -e "$wf" ] || continue
+  if ! grep -Eq "uses: pzoli6/github-kit/.*@${EXPECTED_REF}([[:space:]]|\$)" "$wf"; then
+    echo "MISMATCH workflow ref in $wf (expected @$EXPECTED_REF per docs/ai/PROJECT_CONFIG.md \"github-kit ref\")"
+    ref_ok=0
+  fi
+done
+if [ "$ref_ok" -eq 1 ]; then
+  echo "OK      caller workflows reference @$EXPECTED_REF"
+else
+  missing=1
+fi
+
+echo
+if [ "$missing" -ne 0 ]; then
+  echo "Agent workflow verification FAILED — see MISSING items above."
+  exit 1
+fi
+
+echo "Agent workflow verification passed."

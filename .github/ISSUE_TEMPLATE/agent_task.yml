@@ -1,0 +1,81 @@
+# The "agent-task" label below is applied automatically by this issue form and must exist in the
+# repo (GitHub creates it on first use of this template if missing). The additional status:/type:/
+# risk: labels from `scripts/project/create_standard_labels.sh` are optional convenience labels for
+# filtering — this template does not require them, and their absence never blocks creating an
+# issue with this form.
+name: Agent Task
+description: A task to be planned and implemented following the issue-to-PR-Project workflow.
+title: "[Agent Task]: "
+labels: ["agent-task"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What needs to be solved? What's broken, missing, or needed?
+    validations:
+      required: true
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Relevant background, links, prior discussion, related issues/PRs.
+    validations:
+      required: false
+
+  - type: textarea
+    id: approved-plan
+    attributes:
+      label: Approved plan
+      description: >-
+        The plan a human approved with "approve" (or a summary of it).
+        Leave blank if this issue is still in Plan Review.
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      description: What must be true for this task to be considered Done?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: intended-agent
+    attributes:
+      label: Intended agent
+      description: Which agent (or human) is expected to implement this?
+      options:
+        - Codex
+        - Claude Code
+        - Antigravity
+        - Cursor
+        - Gemini
+        - ChatGPT
+        - GitHub Copilot
+        - Manual
+        - Mixed
+    validations:
+      required: true
+
+  - type: dropdown
+    id: risk
+    attributes:
+      label: Risk
+      options:
+        - Low
+        - Medium
+        - High
+    validations:
+      required: true
+
+  - type: input
+    id: base-branch
+    attributes:
+      label: Base branch
+      description: Branch this work should target (see docs/ai/PROJECT_CONFIG.md for the repo default).
+      placeholder: develop
+    validations:
+      required: true
