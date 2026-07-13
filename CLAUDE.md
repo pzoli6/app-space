@@ -78,8 +78,10 @@ Fast path: `/github_kit <task>` is a pre-approved alternative entry point — th
 
 Agents must not push to protected branches, merge PRs, modify secrets, use `git add .`, or claim validation passed unless validation actually ran.
 
-Before stopping, losing context, or handing off to another agent, agents must update:
+Solo mode: `docs/ai/PROJECT_CONFIG.md` → "Solo mode" (default `auto` — active until a real GitHub Project is configured) collapses the lifecycle to plan → approval → branch/worktree → implementation → validation → draft PR: no issue for pre-approved iterations, no Project-field updates, handoff files only when actually stopping mid-task. Approval gates and git/PR safety rules apply unchanged.
+
+Before stopping mid-task, losing context, or handing off to another agent, agents must update:
 - `docs/ai/handoffs/issue-<number>.md`
-- Project field: `Last Agent Update`
-- Project field: `Validation`
+- Project field: `Last Agent Update` (full mode only)
+- Project field: `Validation` (full mode only)
 <!-- END GITHUB-KIT UNIVERSAL WORKFLOW -->
