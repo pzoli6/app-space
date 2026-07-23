@@ -9,8 +9,8 @@ jobs:
     uses: pzoli6/github-kit/.github/workflows/reusable-pr-policy.yml@main
     with:
       # TODO: confirm this matches Base branch in docs/ai/PROJECT_CONFIG.md
-      required_base_branch: develop
-      require_agent_branch_prefix: agent/
+      required_base_branch: master
+      require_agent_branch_prefix: "agent/,claude/,codex/"
       allow_hotfix: true
       # Require a human-authorization marker in the PR body for any PR that targets the
       # production branch directly. See "Production-branch approval gate (CI)" in
