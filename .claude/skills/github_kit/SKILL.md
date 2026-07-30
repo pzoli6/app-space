@@ -63,6 +63,17 @@ instruction files may lag behind `github-kit/main` until someone runs `/github_k
    expand scope. If a decomposition would expand scope, present it as a numbered breakdown and use
    the `approve all`/`approve 1,3` gate from `AGENTS.md` → "Splitting a task into sub-tasks" for the
    extra scope only.
+   **If `<task>` is a path to a spec file, this approval is conditional.** A path is not a task
+   description — it delegates the scope boundary to a document, and that document is normally
+   written by an agent rather than by the human who invoked the command. Treat
+   `/github_kit implement <path>` as approval only when that file's front matter carries a
+   human-set `status: approved` together with `approved-by` and `approved-on`. Any other value
+   — `draft`, `ready`, or absent — means report the file as awaiting human review and implement
+   nothing. Where the marker is present, the approved scope is that file's **Acceptance criteria**
+   section and nothing beyond it. If the repo ships a verification command for these markers, run
+   it first and treat a failure as "not approved" — a marker that cannot be re-checked against a
+   recorded human action is just text, and text is exactly what you can write yourself.
+
 4. **Create the issue with full metadata.**
    ```bash
    scripts/project/create_agent_issue.sh --title "<title>" --body-file <path> \
@@ -137,7 +148,10 @@ instruction files may lag behind `github-kit/main` until someone runs `/github_k
     people — there's no separate subscribe step (`gh` has none). If neither is configured for this
     repo, `@mention` the relevant person directly in the issue/PR body instead of assuming they'll
     see it. See `AGENTS.md` → "Notifications and participation".
-18. **Stop for human review.** Do not merge.
+18. **Stop for human review.** Do not merge. Report the PR link and end the turn — don't look at,
+    wait for, or mention CI. A preview PR normally shows no checks at all (CI runs only for
+    production-bound changes or an explicit human dispatch), and that absence is by design, not a
+    failure to report. See `AGENTS.md` → "CI expectations — don't chase checks".
 19. **On change requests:**
     ```bash
     scripts/project/sync_project_fields.sh changes_requested <issue-url>
@@ -167,6 +181,11 @@ instruction files may lag behind `github-kit/main` until someone runs `/github_k
 
 - Never implement beyond the scope `<task>` described without falling back to the normal approval
   gate for the extra scope.
+- Never write a human-approval marker (`status: approved`, `approved-by`, `approved-on`) into a
+  spec file on your own initiative — not one you authored, not one you were handed. That marker is
+  the human's signature; an agent that writes it is forging its own approval. Recording one on
+  explicit instruction is fine only where the repo can still verify it against a recorded human
+  action; otherwise say so rather than writing an unverifiable marker.
 - Never proceed past a dirty, unrelated working tree without asking first.
 - Never leave an agent branch local-only — push it (step 6) before writing implementation code.
 - Never leave issue/PR sidebar metadata (assignee, labels, milestone) blank when
