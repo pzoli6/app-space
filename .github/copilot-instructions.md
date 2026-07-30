@@ -44,7 +44,25 @@ Follow that workflow exactly:
   development links".
 - Before stopping mid-task, write `docs/ai/handoffs/issue-<number>.md` so another agent (or a
   human) can continue without re-deriving context.
+- **Never chase CI.** CI only runs for production-bound changes or an explicit human dispatch, so
+  a preview PR with no checks at all is the expected outcome — not a failure. Don't fetch check
+  runs, wait, poll, or report "CI didn't run"/"checks are missing"/"the PR is red" anywhere, and
+  never dispatch a workflow yourself. Exceptions: the human explicitly asks, or the change targets
+  the production branch. See `AGENTS.md` → "CI expectations — don't chase checks".
 - This repo's reusable workflows auto-track `pzoli6/github-kit@main` (the always-latest channel) —
   central workflow changes apply on the next run automatically. Local bootstrap files (this file,
   `AGENTS.md`, skills, Cursor rules) only refresh when `/github_kit_update` or
   `update-github-kit.sh`/`.ps1` is run explicitly; don't assume they're current with `main`.
+
+## Manual Copilot use and the Actions budget
+
+A human driving Copilot directly — assigning the coding agent to an issue or task, asking
+`@copilot` to resolve a PR's merge conflicts or apply review feedback, requesting a Copilot code
+review — is always their call and needs no `approve` phrase from this workflow; those aren't
+agent-initiated actions. Be aware that coding-agent sessions execute as GitHub Actions workflow
+runs in this repo and share the account's Actions budget with this repo's CI. If a session fails
+to start because the Actions budget is exhausted, see `docs/ai/AGENT_WORKFLOW.md` → "Actions
+budget and manual Copilot use": a human/billing admin can raise the budget (Settings → Billing
+and licensing → Budgets and alerts), pause the kit's workflows by setting the repository Actions
+variable `KIT_ACTIONS_PAUSED` to `true` to stop the drain, or have conflicts resolved locally,
+which consumes no Actions minutes. Never change billing, budget, or Actions settings yourself.

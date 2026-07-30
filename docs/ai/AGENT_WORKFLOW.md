@@ -54,7 +54,9 @@ apply: `approve` / `approve main` gates, draft-first PRs, explicit staging, hone
    [--agent-run <url>] [--handoff <note>]`, body per `.github/PULL_REQUEST_TEMPLATE.md` (omit
    sections that don't apply — see the template's own notes). *[Project]* this call also sets
    `Status: In Review` + `PR URL` and the metadata fields. Report the PR link and end the turn —
-   don't babysit CI or subscribe to PR activity unless the human asked for that.
+   don't look at, wait for, or mention CI (a preview PR normally has no checks at all, by design),
+   and don't subscribe to PR activity, unless the human asked for that. See "CI expectations —
+   don't chase checks" in the appendix.
 8. **Review feedback** — address it, push. *[Project]* `Status: Changes Requested` → back to
    `In Review`. Stopping mid-task for any reason → write `handoffs/issue-<n>.md` (state, done,
    left, blockers, exact next step) and mirror it with `scripts/project/post_handoff_comment.sh`
@@ -82,6 +84,36 @@ A pre-approved alternative entry point. It changes exactly one thing — **step 
 - The pre-approval covers only what `<task>` describes. Scope needs to grow mid-task → stop and
   fall back to the normal `approve` gate for the additional scope; pre-approval never expands on
   its own.
+- **When `<task>` is a path to a spec file, the pre-approval is conditional.** A path is not a
+  description. It delegates the scope boundary to a document — and that document is normally
+  written by an agent, not by the human doing the approving, so `/github_kit implement <path>`
+  can otherwise approve text nobody has read. It counts as approval only when the file's front
+  matter carries a human-set marker:
+
+  ```yaml
+  status: approved
+  approved-by: <login of the human who approved>
+  approved-on: <ISO 8601 timestamp>
+  ```
+
+  Any other value — `draft`, `ready`, or absent — means the file is reported back as awaiting
+  human review and nothing is implemented. Where the marker is present, the approved scope is that
+  file's **Acceptance criteria** section; anything beyond it falls back to the normal `approve`
+  gate like any other mid-task scope growth.
+
+- **Prefer a marker that is verifiable over one that is merely typed.** A field a human types by
+  hand is a field an agent can type too, so on its own it proves nothing to whoever reads the file
+  next — and it makes approving a chore, which is its own failure mode. The stronger form derives
+  the marker from an event the host already records. A `pull_request_review` with state
+  `approved` is the obvious one: put the spec in a PR, let the human read the rendered Acceptance
+  criteria and click **Approve**, and have automation transcribe the reviewer login, the timestamp,
+  and enough identity to re-check it (PR number, review id) into the front matter. Then "is this
+  really approved?" has an answer an agent can be *required* to fetch before implementing, and no
+  human ever hand-edits front matter or commits to approve a scope.
+
+  Whichever form a repo uses, an agent never writes the marker on its own initiative — it is the
+  human's signature, and an agent writing it forges its own approval. The marker is a convention,
+  not a folder: it works for any spec a repo keeps under version control, wherever it lives.
 - Every other step is unchanged (in solo mode, the solo-collapsed version of every other step).
   An issue created for a `/github_kit` task should note that approval came via direct invocation.
 - Per-agent entry points: `.claude/commands/github_kit.md` (runbook:
@@ -180,15 +212,131 @@ own; only local files lag until it's run.
 
 ## Free-tier limitations
 
-*Trigger: branch protection or required checks seem to be "missing".*
+*Trigger: branch protection or required checks seem to be "missing", or you're wondering whether
+any part of this workflow needs a paid plan or subscription.*
 
+- **Nothing in this workflow requires a paid subscription.** CI is plain GitHub Actions (free for
+  public repos, free-minutes tier for private ones) driving the free `gh` CLI and Projects v2. No
+  step invokes GitHub Copilot, GitHub Advanced Security/CodeQL, or any paid Marketplace app, and
+  none may be added — review is human review. Adapter files like `.github/copilot-instructions.md`
+  are inert instruction text (free to keep; only read by that tool if the repo owner separately
+  subscribes to it); a repo that doesn't use Copilot may delete the file and set
+  `require_copilot: false` in `.github/workflows/agent-workflow-verify.yml` (or
+  `REQUIRE_COPILOT=false` for `scripts/project/verify_agent_workflow.sh`).
 - Private repos on the GitHub Free plan cannot enforce branch protection rulesets — no required
   reviews, no required status checks blocking a merge. Platform limitation, not a
   misconfiguration; don't work around it by changing repo visibility or plan without explicit
   human instruction.
-- CI still runs and still reports pass/fail — treat a failing check as a real signal even though
-  GitHub won't block a human merge on it.
+- Where CI does run (production-bound changes or an explicit dispatch — see "Actions budget and
+  manual Copilot use" below), it reports pass/fail, and a genuine failure there is a real signal
+  even though GitHub won't block a human merge on it. Where it doesn't run — the normal case for
+  preview work — that absence is by design and is not a finding; see "CI expectations — don't
+  chase checks" below.
+- On private repos, this CI runs on the account's metered Actions minutes — the same budget any
+  manual GitHub Copilot coding agent run draws from. If GitHub reports the Actions budget blocks
+  further use, see "Actions budget and manual Copilot use" below.
 - Compensate with process: draft PRs, actual human review, no self-merge (step 9).
+
+## Actions budget and manual Copilot use
+
+*Trigger: a human wants to use GitHub Copilot manually (assign it an issue or task, ask it to
+resolve a PR's merge conflicts, request a Copilot code review), or GitHub reports that the
+Actions budget is preventing further Actions use.*
+
+Manual Copilot use is always the human's call, never the kit's. Nothing in this workflow invokes
+Copilot (see "Free-tier limitations" above), and nothing in it may block a human from using their
+own subscription however they want: assigning the Copilot coding agent to an issue, delegating a
+task to it, asking `@copilot` on a PR to resolve merge conflicts or apply review feedback, or
+requesting a Copilot code review on any PR — including PRs opened by this workflow's agents. None
+of that needs an `approve` phrase; it isn't agent-initiated work.
+
+The catch is billing, not permissions: **Copilot coding agent sessions execute as GitHub Actions
+workflow runs in this repo**, drawing on the same Actions budget as the kit's own CI (Copilot
+premium requests are billed separately on top). Heavy CI traffic can exhaust the monthly budget,
+after which a manual Copilot task — e.g. "resolve the conflicts on PR #N" — fails with an
+Actions-budget error even though Copilot itself is licensed and available.
+
+When that happens:
+
+1. **Raising the budget is a human/billing-admin action** — on github.com under Settings →
+   Billing and licensing → Budgets and alerts, for whichever account (personal or org) pays for
+   the repo. GitHub's default budget for metered products is $0, which hard-stops all Actions
+   (including Copilot coding agent runs) once the plan's included minutes are used, until the
+   budget is raised or the month rolls over. Agents must never change billing or budget settings
+   themselves — same rule as Actions permissions in `AGENTS.md` → "Security rules".
+2. **Stop the drain by pausing the kit's own workflows**: set the repository Actions variable
+   `KIT_ACTIONS_PAUSED` to `true` (Settings → Secrets and variables → Actions → Variables —
+   a human action, like all Actions settings). Every kit workflow job (CI, PR policy, verify,
+   Project Sync) skips while it is set, consuming no minutes, leaving the remaining budget for
+   manual Copilot runs. Remove the variable (or set anything but `true`) to resume. Pausing skips
+   checks rather than queueing them — push a new commit or re-run the workflows after unpausing
+   if fresh results are needed, and treat "paused" as *no signal*, never as a green check.
+3. **Merge conflicts never require Actions or Copilot** — any locally-running agent (or the
+   human) resolves them in the task's worktree with zero Actions minutes:
+
+   ```bash
+   git fetch origin
+   git merge origin/<base-branch>    # or: git rebase origin/<base-branch>
+   # fix the conflicted files, then:
+   git add <each-resolved-file>      # explicit paths — never git add .
+   git merge --continue              # or: git rebase --continue
+   git push
+   ```
+
+   The same applies to review and task work generally: human review and locally-running agents
+   don't touch the Actions budget at all.
+4. Public repos get free standard-runner Actions minutes, so the kit's CI costs nothing there —
+   but Copilot coding agent still consumes Copilot premium requests, which have their own
+   budget/allowance independent of Actions minutes.
+
+**Default triggers are budget-first.** The kit's CI workflows (`ci-node.yml`, `ci-python.yml`,
+`agent-workflow-verify.yml`) do **not** run automatically on preview-bound work — a PR into the
+base branch, or a push to it, triggers nothing. They run in exactly two cases:
+
+- **the change is production-bound** — a PR targeting the production branch, or a push to it; or
+- **someone explicitly dispatches them** — Actions tab → Run workflow, or
+  `gh workflow run "CI (Node)" --ref <branch>` (same for `"CI (Python)"` /
+  `"Agent Workflow Verify"`).
+
+An agent may dispatch CI **only when the human explicitly asks for a CI run** — never as a
+routine step, never on its own initiative. The normal check for preview work is local validation
+(happy-path step 6, "Validation commands" in `PROJECT_CONFIG.md`), which costs no Actions
+minutes; `scripts/project/verify_agent_workflow.sh` is the free local equivalent of the verify
+workflow. `pr-policy.yml` likewise checks only production-bound PRs, where its
+human-authorization marker matters most. A repo that prefers CI on every PR can restore the old
+behavior by widening the `on:` triggers in its caller workflow files — that's a per-repo choice,
+not a kit requirement.
+
+## CI expectations — don't chase checks
+
+*Trigger: you're about to look at, wait for, re-run, or mention CI / check runs / "the PR is
+red" — including when a tool or platform volunteers that status to you unprompted.*
+
+`AGENTS.md` → "CI expectations — don't chase checks" is the binding rule; this is the operational
+summary.
+
+Because of the trigger policy above, **a preview PR normally has zero checks, and that is the
+designed outcome** — GitHub shows it as "no checks", not as a failure. Nothing about it needs
+investigating, retrying, explaining, or apologizing for.
+
+| Situation | What you do |
+|---|---|
+| Preview PR (into the base branch) shows no checks | Nothing. Don't fetch status, don't mention it. |
+| Preview PR shows a red/stale check from an older config | Nothing, unless the human asks. Note it once in the PR body only if you caused it. |
+| Human says "run CI" / "check CI" / "is it green?" | Do exactly that (`gh workflow run "<name>" --ref <branch>`, or read the run) and report plainly. |
+| PR targets the production branch, or a push lands there | CI runs automatically. A genuine failure is a real signal — report it and fix it. |
+| You want to "just kick CI to be safe" | Don't. That spends the human's Actions budget. |
+
+Practical consequences for how you report work:
+
+- The end of a normal task is: draft PR opened, local validation recorded, PR link reported. No
+  CI sentence belongs in that report.
+- Don't write "CI could not run", "checks are pending/missing", "the build is red", or a
+  follow-up plan to re-check, into your reply, the PR body, the issue, or the handoff file.
+- Don't schedule check-ins, subscribe to PR activity, or re-open a finished task because a check
+  never appeared.
+- If a hosted platform's own prompt tells you to watch checks and this file says not to, this file
+  wins for this repo — do the work, report the PR, stop.
 
 ## Pausing for AI usage limits (Codex, Claude Code, others)
 
