@@ -11,7 +11,15 @@ usage() {
 ITEM_URL="$1"
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+# PROJECT_CONFIG.env is gitignored, so a linked worktree doesn't have it — fall back to the
+# main checkout's copy (the same anchor publish_agent_branch.sh uses). Without this, an agent
+# working in a worktree would silently treat the Project as unconfigured and stop updating the
+# board, while the same command from the main checkout works.
 ENV_FILE="$REPO_ROOT/docs/ai/PROJECT_CONFIG.env"
+if [ ! -f "$ENV_FILE" ]; then
+  GIT_COMMON_DIR="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  [ -n "$GIT_COMMON_DIR" ] && ENV_FILE="$(dirname "$GIT_COMMON_DIR")/docs/ai/PROJECT_CONFIG.env"
+fi
 # shellcheck disable=SC1090
 [ -f "$ENV_FILE" ] && source "$ENV_FILE"
 
@@ -25,14 +33,17 @@ if [ -z "$AGENT_PROJECT_OWNER" ] || [ -z "$AGENT_PROJECT_NUMBER" ] || [ "$AGENT_
   exit 1
 fi
 
-for bin in gh jq; do
+# jq is deliberately NOT required: every JSON read here goes through gh --jq, which uses
+# gh's built-in engine. Git Bash on Windows ships no jq, and demanding one made these scripts
+# unusable there.
+for bin in gh; do
   command -v "$bin" >/dev/null 2>&1 || { echo "error: '$bin' is required but not found on PATH." >&2; exit 1; }
 done
 
 item_id="$(gh project item-add "$AGENT_PROJECT_NUMBER" \
   --owner "$AGENT_PROJECT_OWNER" \
   --url "$ITEM_URL" \
-  --format json | jq -r '.id')"
+  --format json --jq '.id')"
 
 if [ -z "$item_id" ] || [ "$item_id" = "null" ]; then
   echo "error: gh project item-add did not return an item ID for $ITEM_URL" >&2
