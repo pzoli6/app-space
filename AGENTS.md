@@ -57,7 +57,7 @@ Agents must read:
 - `docs/ai/AGENT_WORKFLOW.md`
 
 Every implementation task must follow:
-User task → plan → human approval → GitHub issue → Project update → agent branch/worktree → implementation → validation → draft PR → handoff → human review.
+User task → plan → human approval → GitHub issue → Project update → agent branch/worktree → implementation → validation → draft PR → handoff → human review → human marks ready → auto-merge after green.
 
 Required approval phrase:
 ```text
@@ -68,10 +68,17 @@ Fast path: `/github_kit <task>` is a pre-approved alternative entry point — th
 
 Agents must not push to protected branches, merge PRs, modify secrets, use `git add .`, or claim validation passed unless validation actually ran.
 
+Agents must never mark a PR ready for review (with `.github/workflows/auto-merge.yml` installed, a person marking a draft PR ready is what lets it merge automatically once every check is green), never add or remove the `no-automerge` label, and never enable GitHub's native auto-merge. PRs stay drafts. See `docs/ai/AGENT_WORKFLOW.md` → "Auto-merge after green".
+
 Solo mode: `docs/ai/PROJECT_CONFIG.md` → "Solo mode" (default `auto` — active until a real GitHub Project is configured) collapses the lifecycle to plan → approval → branch/worktree → implementation → validation → draft PR: no issue for pre-approved iterations, no Project-field updates, handoff files only when actually stopping mid-task. Approval gates and git/PR safety rules apply unchanged.
 
 Before stopping mid-task, losing context, or handing off to another agent, agents must update:
 - `docs/ai/handoffs/issue-<number>.md`
 - Project field: `Last Agent Update` (full mode only)
 - Project field: `Validation` (full mode only)
+
+## Code Review Rules
+
+Every reviewer of a pull request (human, Codex, Claude) applies `REVIEW.md` at the repository root: what counts as blocking, what to always check, what to skip, and how the PR's agent handles review-bot findings. Read it in full before reviewing.
+
 <!-- END GITHUB-KIT UNIVERSAL WORKFLOW -->
