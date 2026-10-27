@@ -57,14 +57,19 @@ apply: `approve` / `approve main` gates, draft-first PRs, explicit staging, hone
    [--agent-run <url>] [--handoff <note>]`, body per `.github/PULL_REQUEST_TEMPLATE.md` (omit
    sections that don't apply — see the template's own notes). *[Project]* this call also sets
    `Status: In Review` + `PR URL` and the metadata fields. Report the PR link and end the turn —
-   don't look at, wait for, or mention CI (a preview PR normally has no checks at all, by design),
-   and don't subscribe to PR activity, unless the human asked for that. See "CI expectations —
-   don't chase checks" in the appendix.
+   leave the PR a **draft** (marking it ready is the human's act, and in this repo it is what
+   triggers the automatic merge — see "Auto-merge after green" in the appendix); don't look at,
+   wait for, or mention CI (a preview PR normally has no checks at all, by design), and don't
+   subscribe to PR activity, unless the human asked for that. See "CI expectations — don't chase
+   checks" in the appendix.
 8. **Review feedback** — address it, push. *[Project]* `Status: Changes Requested` → back to
    `In Review`. Stopping mid-task for any reason → write `handoffs/issue-<n>.md` (state, done,
    left, blockers, exact next step) and mirror it with `scripts/project/post_handoff_comment.sh`
    — see "Pausing" sections in the appendix.
-9. **Completion** — a human merges; never you. On learning of the merge:
+9. **Completion** — the human marks the PR ready (or removes the `no-automerge` label) and
+   `.github/workflows/auto-merge.yml` merges it once every check on its head is green; never
+   you — never mark a PR ready, never touch the label, never merge (appendix → "Auto-merge after
+   green"). On learning of the merge:
    `scripts/project/cleanup_merged_branches.sh --branch <branch>` (worktree + local branch +
    issue close, with built-in safety checks — trust its `SKIPPED` reasons). Abandoned instead of
    merged → `scripts/project/sync_project_fields.sh cancelled <issue-url>` and remove the
@@ -218,7 +223,7 @@ approve 1,3
 *Trigger: the human invokes `/github_kit_update`, or local kit files look stale.*
 
 Refreshes this repo's *local* github-kit bootstrap files (`AGENTS.md`/`CLAUDE.md` managed block,
-skills, Cursor rules, `copilot-instructions.md`, this file, project helper scripts) from
+skills, Cursor rules, `REVIEW.md`, this file, project helper scripts) from
 `pzoli6/github-kit@main`. Requires network (that's its purpose); refuses a dirty working tree
 unless explicitly allowed; never overwrites `docs/ai/PROJECT_CONFIG.md` unless `--force-config`;
 always stops at a draft PR. Optional — the reusable-workflow callers auto-track `@main` on their
@@ -231,62 +236,59 @@ any part of this workflow needs a paid plan or subscription.*
 
 - **Nothing in this workflow requires a paid subscription.** CI is plain GitHub Actions (free for
   public repos, free-minutes tier for private ones) driving the free `gh` CLI and Projects v2. No
-  step invokes GitHub Copilot, GitHub Advanced Security/CodeQL, or any paid Marketplace app, and
-  none may be added — review is human review. Adapter files like `.github/copilot-instructions.md`
-  are inert instruction text (free to keep; only read by that tool if the repo owner separately
-  subscribes to it); a repo that doesn't use Copilot may delete the file and set
-  `require_copilot: false` in `.github/workflows/agent-workflow-verify.yml` (or
-  `REQUIRE_COPILOT=false` for `scripts/project/verify_agent_workflow.sh`).
+  step invokes a paid AI service, GitHub Advanced Security/CodeQL, or any paid Marketplace app, and
+  none may be added. Review is human review, optionally helped by AI reviewers the owner runs
+  outside CI (see `REVIEW.md`).
 - Private repos on the GitHub Free plan cannot enforce branch protection rulesets — no required
   reviews, no required status checks blocking a merge. Platform limitation, not a
   misconfiguration; don't work around it by changing repo visibility or plan without explicit
   human instruction.
-- Where CI does run (production-bound changes or an explicit dispatch — see "Actions budget and
-  manual Copilot use" below), it reports pass/fail, and a genuine failure there is a real signal
+- Where CI does run (production-bound changes or an explicit dispatch — see "Actions budget"
+  below), it reports pass/fail, and a genuine failure there is a real signal
   even though GitHub won't block a human merge on it. Where it doesn't run — the normal case for
   preview work — that absence is by design and is not a finding; see "CI expectations — don't
   chase checks" below.
-- On private repos, this CI runs on the account's metered Actions minutes — the same budget any
-  manual GitHub Copilot coding agent run draws from. If GitHub reports the Actions budget blocks
-  further use, see "Actions budget and manual Copilot use" below.
+- On private repos, this CI runs on the account's metered Actions minutes, one budget shared by
+  every repo on the account. If GitHub reports the Actions budget blocks further use, see
+  "Actions budget" below.
 - Compensate with process: draft PRs, actual human review, no self-merge (step 9).
 
-## Actions budget and manual Copilot use
+## Actions budget
 
-*Trigger: a human wants to use GitHub Copilot manually (assign it an issue or task, ask it to
-resolve a PR's merge conflicts, request a Copilot code review), or GitHub reports that the
-Actions budget is preventing further Actions use.*
+(Older copies of `AGENTS.md` and `PROJECT_CONFIG.md` call this section "Actions budget and manual
+Copilot use"; this is it. The kit no longer covers GitHub Copilot.)
 
-Manual Copilot use is always the human's call, never the kit's. Nothing in this workflow invokes
-Copilot (see "Free-tier limitations" above), and nothing in it may block a human from using their
-own subscription however they want: assigning the Copilot coding agent to an issue, delegating a
-task to it, asking `@copilot` on a PR to resolve merge conflicts or apply review feedback, or
-requesting a Copilot code review on any PR — including PRs opened by this workflow's agents. None
-of that needs an `approve` phrase; it isn't agent-initiated work.
+*Trigger: GitHub reports that the Actions budget is preventing further Actions use, or a human
+asks how to keep a repo's Actions spend down.*
 
-The catch is billing, not permissions: **Copilot coding agent sessions execute as GitHub Actions
-workflow runs in this repo**, drawing on the same Actions budget as the kit's own CI (Copilot
-premium requests are billed separately on top). Heavy CI traffic can exhaust the monthly budget,
-after which a manual Copilot task — e.g. "resolve the conflicts on PR #N" — fails with an
-Actions-budget error even though Copilot itself is licensed and available.
+On private repos every workflow run, in every repo on the account, draws from one monthly pool of
+Actions minutes. Heavy CI in one repo can exhaust it for all of them, after which every workflow
+fails with an Actions-budget error until the month rolls over or the budget is raised.
 
 When that happens:
 
 1. **Raising the budget is a human/billing-admin action** — on github.com under Settings →
    Billing and licensing → Budgets and alerts, for whichever account (personal or org) pays for
-   the repo. GitHub's default budget for metered products is $0, which hard-stops all Actions
-   (including Copilot coding agent runs) once the plan's included minutes are used, until the
-   budget is raised or the month rolls over. Agents must never change billing or budget settings
-   themselves — same rule as Actions permissions in `AGENTS.md` → "Security rules".
+   the repo. A $0 budget hard-stops all Actions once the plan's included minutes are used, until
+   the budget is raised or the month rolls over. Agents must never change billing or budget
+   settings themselves — same rule as Actions permissions in `AGENTS.md` → "Security rules".
 2. **Stop the drain by pausing the kit's own workflows**: set the repository Actions variable
    `KIT_ACTIONS_PAUSED` to `true` (Settings → Secrets and variables → Actions → Variables —
    a human action, like all Actions settings). Every kit workflow job (CI, PR policy, verify,
-   Project Sync) skips while it is set, consuming no minutes, leaving the remaining budget for
-   manual Copilot runs. Remove the variable (or set anything but `true`) to resume. Pausing skips
-   checks rather than queueing them — push a new commit or re-run the workflows after unpausing
-   if fresh results are needed, and treat "paused" as *no signal*, never as a green check.
-3. **Merge conflicts never require Actions or Copilot** — any locally-running agent (or the
-   human) resolves them in the task's worktree with zero Actions minutes:
+   Project Sync, auto-merge) skips while it is set, consuming no minutes. Remove the variable (or
+   set anything but `true`) to resume. Pausing skips checks rather than queueing them — push a new
+   commit or re-run the workflows after unpausing if fresh results are needed, and treat "paused"
+   as *no signal*, never as a green check. Paused also means nothing merges, and `auto-merge.yml`
+   enforces the *no signal* rule: a kit CI / verify / PR Policy check that the pause left
+   `skipped` blocks the merge. So after unpausing, a human re-runs those workflows (or pushes a
+   commit); their successful completion re-evaluates the ready PR. Adding and removing
+   `no-automerge` alone will not merge it while the paused-skipped checks are still the latest ones.
+3. **Lower the repo's tier.** A tier 2 repo's CI and verify workflows run only when dispatched by
+   hand (`# github-kit tier: N` in those callers, set from github-kit's
+   `.github/fanout-targets.json`). `auto-merge.yml` needs at least one check, so in a tier 2 repo a
+   ready PR merges only after someone dispatches its CI (or `KIT_AUTOMERGE_ALLOW_NO_CHECKS` is set).
+4. **Merge conflicts never require Actions** — any locally-running agent (or the human) resolves
+   them in the task's worktree with zero Actions minutes:
 
    ```bash
    git fetch origin
@@ -299,9 +301,7 @@ When that happens:
 
    The same applies to review and task work generally: human review and locally-running agents
    don't touch the Actions budget at all.
-4. Public repos get free standard-runner Actions minutes, so the kit's CI costs nothing there —
-   but Copilot coding agent still consumes Copilot premium requests, which have their own
-   budget/allowance independent of Actions minutes.
+5. Public repos get free standard-runner Actions minutes, so the kit's CI costs nothing there.
 
 **Default triggers are budget-first.** The kit's CI workflows (`ci-node.yml`, `ci-python.yml`,
 `agent-workflow-verify.yml`) do **not** run automatically on preview-bound work — a PR into the
@@ -351,6 +351,58 @@ Practical consequences for how you report work:
   never appeared.
 - If a hosted platform's own prompt tells you to watch checks and this file says not to, this file
   wins for this repo — do the work, report the PR, stop.
+
+## Auto-merge after green
+
+*Trigger: you're wondering how or when a PR merges, someone asks you to merge or "mark it
+ready", or a green PR is sitting unmerged.*
+
+The binding rule is in the managed block of `AGENTS.md` / `CLAUDE.md` / `GEMINI.md` — never mark
+a PR ready, never add or remove `no-automerge`, never merge; repos installed since auto-merge
+shipped also carry the longer `AGENTS.md` → "Auto-merge after green" section. This is the
+operational summary.
+
+`.github/workflows/auto-merge.yml` (calling `reusable-auto-merge.yml@main`) merges a PR with a
+**merge commit** once it is open, **not a draft**, **marked ready by a person** (its timeline
+shows a `ready_for_review` event by a User account — a PR opened non-draft never qualifies),
+free of the `no-automerge` label, from this repository (not a fork) and not from a long-lived
+branch (default branch, `main`, `master`, `develop`, `staging`, `production`), without an
+outstanding `CHANGES_REQUESTED` review, mergeable without conflicts, and every check run and
+every other workflow run on its head commit has completed `success`/`neutral`/`skipped` with the
+combined commit status `success` (or no statuses at all). It re-evaluates on: PR marked ready /
+reopened / `no-automerge` removed, a workflow run or third-party check suite completing
+successfully, a `success` commit status arriving. Queued or running checks mean *wait*; a
+failed/cancelled/timed-out one means *no merge* — a later push starts over. Every API read fails
+closed. It never approves a review, never bypasses anything, never touches branch protection or
+repository settings, and deletes the merged head branch only if it is an agent branch
+(`agent/`, `claude/`, `codex/`, ...) that no other open PR uses.
+
+A ready PR that auto-merge holds back carries **one auto-merge comment, kept current**, naming
+the reason and the next step (the rows below). It is written by the automation for the human:
+don't act on it yourself beyond what the human asks, and never mark ready, relabel or merge to
+"fix" it.
+
+| Situation | What it means |
+|---|---|
+| No check runs, statuses or workflow runs on the head | **Not merged** — "no checks" is not green. With the kit's budget-first triggers this is the normal state of a PR into the base branch unless a third-party check (Vercel) reports on it; the human merges it by hand. A repo that wants "merge when marked ready" without checks sets the variable `KIT_AUTOMERGE_ALLOW_NO_CHECKS=true` (owner action). |
+| `KIT_ACTIONS_PAUSED` is `true`, or the Actions budget is exhausted | Nothing merges — no run starts. After unpausing / restoring the budget (human actions), re-run the workflows the pause skipped (or push); kit checks skipped by the pause block the merge until then. |
+| `KIT_AUTOMERGE_DISABLED` is `true` | Auto-merge is off in this repo — the durable opt-out (deleting the caller file lasts only until the next kit update). |
+| Ready and green, but nothing merged | A workflow that is not named under `workflow_run` in `auto-merge.yml` finished last, so no event woke auto-merge. List the repo's own PR workflows (by `name:`) between the `# >>> github-kit: repo workflows >>>` marker lines in that file; kit updates keep those lines. Adding the names is an ordinary code change on an agent branch; the human can re-trigger meanwhile by adding and removing `no-automerge`. |
+| Merge made with the default `GITHUB_TOKEN` | Other Actions workflows on the base branch do **not** trigger from that merge. Vercel/GitHub-app webhooks do. A repo that needs push-to-base workflows stores an `AUTOMERGE_TOKEN` PAT secret (owner action). |
+| PR changes `.github/workflows/*` (every github-kit update PR) | Expected to be refused unless the merge token has the workflow permission (`GITHUB_TOKEN` never has): the run logs a warning and the human merges it by hand. |
+| PR opened non-draft (a human asking for review, Dependabot/Renovate, a release PR) | Never merged automatically — no person marked it ready. To hand it over, convert it to draft and mark it ready. |
+| Human asks you to "merge" or "mark it ready" | Say that marking the PR ready is the act the human performs (it *is* the merge decision), and link the PR. Never `gh pr ready`, never merge, never enable GitHub's native auto-merge. |
+
+Budget: on a private repo every auto-merge run that starts bills at least one minute. Events that
+cannot make a PR mergeable (drafts, unrelated label edits, failed runs, pending statuses) are
+dropped before a runner starts; marking a PR ready costs about one minute (the 30 s grace
+sleep); as an estimate a typical PR with one CI workflow and a Vercel preview costs 3–5 billed
+minutes in total.
+
+Rules for agents, restated: **never mark a PR ready for review, never add or remove
+`no-automerge`, never merge**. The human decides by marking a draft ready; everything after that
+is automation. The old *human-merges-only* wording therefore reads as *human-approves-only, merge
+is automated after green*.
 
 ## Pausing for AI usage limits (Codex, Claude Code, others)
 
