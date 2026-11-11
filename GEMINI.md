@@ -68,7 +68,7 @@ Agents must read:
 - `docs/ai/AGENT_WORKFLOW.md`
 
 Every implementation task must follow:
-User task → plan → human approval → GitHub issue → Project update → agent branch/worktree → implementation → validation → draft PR → handoff → human review → human marks ready → auto-merge after green.
+User task → plan → human approval → GitHub issue → Project update → agent branch/worktree → implementation → validation → draft PR → handoff → human review → human merges.
 
 Required approval phrase:
 ```text
@@ -79,7 +79,7 @@ Fast path: `/github_kit <task>` is a pre-approved alternative entry point — th
 
 Agents must not push to protected branches, merge PRs, modify secrets, use `git add .`, or claim validation passed unless validation actually ran.
 
-Agents must never mark a PR ready for review (with `.github/workflows/auto-merge.yml` installed, a person marking a draft PR ready is what lets it merge automatically once every check is green), never add or remove the `no-automerge` label, and never enable GitHub's native auto-merge. PRs stay drafts. See `docs/ai/AGENT_WORKFLOW.md` → "Auto-merge after green".
+Agents must never mark a PR ready for review and never merge: a person marks a draft ready when they want to and merges it themselves — nothing merges automatically, and GitHub's native auto-merge must not be enabled. PRs stay drafts. See `docs/ai/AGENT_WORKFLOW.md` → "Merging and Actions posture".
 
 Solo mode: `docs/ai/PROJECT_CONFIG.md` → "Solo mode" (default `auto` — active until a real GitHub Project is configured) collapses the lifecycle to plan → approval → branch/worktree → implementation → validation → draft PR: no issue for pre-approved iterations, no Project-field updates, handoff files only when actually stopping mid-task. Approval gates and git/PR safety rules apply unchanged.
 
